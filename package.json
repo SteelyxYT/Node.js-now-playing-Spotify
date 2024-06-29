@@ -1,0 +1,19 @@
+{
+  "name": "spotify_test_api",
+  "version": "1.0.0",
+  "description": "testing spotify api and sdk",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "author": "Steelyx",
+  "license": "ISC",
+  "dependencies": {
+    "@spotify/web-api-ts-sdk": "^1.2.0",
+    "axios": "^1.7.2",
+    "colors": "^1.4.0",
+    "express": "^4.19.2",
+    "say": "^0.16.0",
+    "terminal-link": "^3.0.0"
+  }
+}
