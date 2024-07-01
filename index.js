@@ -8,12 +8,15 @@ require("dotenv").config();
 const port = 3000;
 
 let code;
-let currentSong;
+let currentSong = "";
 let tokenType;
 let accessToken;
 let refreshToken;
 let name;
 let membership;
+let songLogged = false;
+let errorQueue = []; // Queue for error messages
+let isSpeakingError = false; // Flag to track if an error message is currently being spoken
 
 const logFilePath = "songs.json";
 
@@ -73,7 +76,7 @@ async function startMain() {
           `Welcome ${name} your membership status is ${membership} and you are now logged in`
             .green
         );
-        say.speak(
+        queueMessage(
           "Welcome " +
             name +
             " your membership status is " +
@@ -87,7 +90,7 @@ async function startMain() {
           "Error: ".red +
             "Couldent fetch user information, trying refreshing token"
         );
-        say.speak(
+        queueMessage(
           "Error: Couldent fetch user information, trying refreshing token"
         );
         axios
@@ -111,13 +114,15 @@ async function startMain() {
           .then((res) => {
             console.log(res.data);
             accessToken = res.data.access_token;
-            refreshToken = res.data.refresh_token;
+            if (res.data.refresh_token) {
+              refreshToken = res.data.refresh_token;
+            }
             tokenType = res.data.token_type;
             console.log(
               "The access token has been refreshed and you are now logged in"
                 .green
             );
-            say.speak(
+            queueMessage(
               "The access token has been refreshed and you are now logged in"
             );
           })
@@ -126,7 +131,7 @@ async function startMain() {
             console.log(
               "Error: ".red + "Could not refresh token, shutting down"
             );
-            say.speak("Error: Could not refresh token, shutting down");
+            queueMessage("Error: Could not refresh token, shutting down");
             setTimeout(() => {
               process.exit();
             }, 10000);
@@ -142,29 +147,38 @@ async function startMain() {
         })
         .then((getTrack) => {
           if (getTrack.data != "") {
-            if (
-              getTrack.data.item.name != currentSong &&
-              getTrack.data.item.name != ""
-            ) {
-              if (getTrack.data.is_playing) {
-                currentSong = getTrack.data.item.name;
+            if (getTrack.data.is_playing) {
+              if (getTrack.data.progress_ms >= 60000 && !songLogged) {
+                songLogged = true;
                 const log = readLog();
                 if (log[getTrack.data.item.name]) {
                   log[getTrack.data.item.name].count += 1;
                 } else {
                   log[getTrack.data.item.name] = {
+                    id: getTrack.data.item.id,
                     artist: getTrack.data.item.artists[0].name,
                     count: 1,
                   };
                 }
                 writeLog(log);
+              }
+            }
+
+            if (
+              getTrack.data.item.name != currentSong &&
+              getTrack.data.item.name != ""
+            ) {
+              songLogged = false;
+              if (getTrack.data.is_playing) {
+                currentSong = getTrack.data.item.name;
+
                 console.log(
                   "Now playing: " +
                     currentSong +
                     " by " +
                     getTrack.data.item.artists[0].name
                 );
-                say.speak(
+                queueMessage(
                   "Now playing: " +
                     currentSong +
                     " by " +
@@ -182,7 +196,7 @@ async function startMain() {
             "Error: ".red +
               "Couldent fetch current track, trying refreshing token"
           );
-          say.speak(
+          queueMessage(
             "Error: Couldent fetch current track, trying refreshing token"
           );
           axios
@@ -206,13 +220,15 @@ async function startMain() {
             .then((res) => {
               console.log(res.data);
               accessToken = res.data.access_token;
-              refreshToken = res.data.refresh_token;
+              if (res.data.refresh_token) {
+                refreshToken = res.data.refresh_token;
+              }
               tokenType = res.data.token_type;
               console.log(
                 "The access token has been refreshed and you are now logged in"
                   .green
               );
-              say.speak(
+              queueMessage(
                 "The access token has been refreshed and you are now logged in"
               );
             })
@@ -221,7 +237,7 @@ async function startMain() {
               console.log(
                 "Error: ".red + "Could not refresh token, shutting down"
               );
-              say.speak("Error: Could not refresh token, shutting down");
+              queueMessage("Error: Could not refresh token, shutting down");
               clearInterval();
               setTimeout(() => {
                 process.exit();
@@ -232,7 +248,28 @@ async function startMain() {
   } catch (err) {
     console.log(err);
     console.log("Error: ".red + "The code given does no longer work");
-    say.speak("Error: The code given does no longer work");
+    queueMessage("Error: The code given does no longer work");
+  }
+}
+
+function queueMessage(errorText) {
+  errorQueue.push(errorText); // Add error message to the queue
+  if (!isSpeakingError) {
+    speakNextError(); // If no error is currently being spoken, start speaking
+  }
+}
+
+function speakNextError() {
+  if (errorQueue.length > 0) {
+    const nextError = errorQueue.shift(); // Dequeue the next error message
+    isSpeakingError = true;
+    say.speak(nextError, undefined, undefined, (err) => {
+      if (err) {
+        console.error("Error speaking:", err);
+      }
+      isSpeakingError = false;
+      speakNextError(); // Continue to speak next error in the queue
+    });
   }
 }
 
