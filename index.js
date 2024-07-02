@@ -1,8 +1,10 @@
-const say = require("say");
+const https = require("node:https");
 const fs = require("node:fs");
 const colors = require("colors");
+const googleTTS = require('google-tts-api')
 const axios = require("axios");
 const express = require("express");
+const sound = require("sound-play");
 const app = express();
 require("dotenv").config();
 const port = 3000;
@@ -186,8 +188,6 @@ async function startMain() {
                 );
               }
             }
-          } else {
-            currentSong = "";
           }
         })
         .catch((err) => {
@@ -255,20 +255,57 @@ async function startMain() {
 function queueMessage(errorText) {
   errorQueue.push(errorText); // Add error message to the queue
   if (!isSpeakingError) {
-    speakNextError(); // If no error is currently being spoken, start speaking
+    speakNextMessage(); // If no error is currently being spoken, start speaking
   }
 }
 
-function speakNextError() {
+async function gtts(msg) {
+  const url = googleTTS.getAudioUrl(msg, {
+    lang: 'en',
+    slow: false,
+    host: 'https://translate.google.com',
+  });
+  const filePath = "D:/projects/code/GitHub/spotify_test_api/audio.mp3";
+
+  await new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(filePath);
+    https.get(url, function(response) {
+      response.pipe(file);
+      file.on("finish", () => {
+        file.close();
+        resolve(filePath); // Resolve with the file path once download is complete
+      });
+    }).on('error', (err) => {
+      reject(err); // Reject promise if there's an error during download
+    });
+  });
+
+  try {
+    await sound.play(filePath, 1); // Play the downloaded audio file
+
+    // After playback, delete the file
+    await new Promise((resolve, reject) => {
+      fs.unlink(filePath, (err) => {
+        if (err) {
+          console.error(`Error removing file: ${err}`);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Error during playback or deletion:', err);
+  }
+}
+
+async function speakNextMessage() {
   if (errorQueue.length > 0) {
     const nextError = errorQueue.shift(); // Dequeue the next error message
     isSpeakingError = true;
-    say.speak(nextError, undefined, undefined, (err) => {
-      if (err) {
-        console.error("Error speaking:", err);
-      }
+    await gtts(nextError).then(() => {
       isSpeakingError = false;
-      speakNextError(); // Continue to speak next error in the queue
+      speakNextMessage(); // Continue to speak next error in the queue
     });
   }
 }
