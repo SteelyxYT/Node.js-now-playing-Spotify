@@ -12,7 +12,7 @@
     "@spotify/web-api-ts-sdk": "^1.2.0",
     "axios": "^1.7.7",
     "colors": "^1.4.0",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.7",
     "express": "^4.21.1",
     "google-tts-api": "^2.0.2",
     "say": "^0.16.0",
